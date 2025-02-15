@@ -16,6 +16,14 @@ import (
 	gigaapi "github.com/saintbyte/gigachat_api"
 )
 
+type state string
+
+const (
+	Chatting  state = "chatting"
+	Weather   state = "weather"
+	Crocodile state = "crocodile"
+)
+
 // Current содержит информацию о текущих погодных условиях
 type Current struct {
 	Time          string  `json:"time"`
@@ -23,9 +31,11 @@ type Current struct {
 	WindSpeed10M  float64 `json:"wind_speed_10m"`
 }
 
-var usersList = []int64{}
-var hourCntBirthDay int = 7
-var weateherMod bool = false
+var (
+	usersList             = []int64{}
+	hourCntBirthDay int   = 7
+	currState       state = Chatting
+)
 
 func telegramBot() {
 	//Создаем бота
@@ -51,19 +61,6 @@ func telegramBot() {
 		var answer string
 		req := update.Message.Text
 		switch {
-		case weateherMod:
-			weateherMod = false
-			fmt.Println(req)
-			regionsMap := confReader()
-			region, valid := regionsMap[req]
-			if !valid {
-				continue
-			}
-			weather, err := GetWeather(region)
-			if err != nil {
-				continue
-			}
-			answer = "Погода сейчас: " + strconv.FormatFloat(weather.Temperature2M, 'f', -1, 64) + " градус(а)"
 		case req == "/weather":
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите город:")
 			regionsMap := confReader()
@@ -90,20 +87,63 @@ func telegramBot() {
 			}
 			msg.ReplyMarkup = numericKeyboard
 			bot.Send(msg)
-			weateherMod = true
+			currState = Weather
 			continue
+		case currState == Weather:
+			currState = Chatting
+			fmt.Println(req)
+			regionsMap := confReader()
+			region, valid := regionsMap[req]
+			if !valid {
+				continue
+			}
+			weather, err := GetWeather(region)
+			if err != nil {
+				continue
+			}
+			answer = "Погода сейчас: " + strconv.FormatFloat(weather.Temperature2M, 'f', -1, 64) + " градус(а)"
 		case req == "/crocodile":
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нажмите старт для начала игры")
 			Buttn1 := tgbotapi.NewKeyboardButton("Старт")
 			Buttn2 := tgbotapi.NewKeyboardButton("Отмена")
-			row := tgbotapi.NewKeyboardButtonRow(Buttn1, Buttn2)
-			tgbotapi.NewKeyboardButton
-			numericKeyboard := tgbotapi.
-			numericKeyboard.Keyboard = append(numericKeyboard.Keyboard,Buttn1)
+			row1 := tgbotapi.NewKeyboardButtonRow(Buttn1)
+			row2 := tgbotapi.NewKeyboardButtonRow(Buttn2)
+			numericKeyboard := tgbotapi.NewReplyKeyboard()
+			numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
+			numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row2)
 			msg.ReplyMarkup = numericKeyboard
 			bot.Send(msg)
-			weateherMod = true
+			currState = Crocodile
 			continue
+		case currState == Crocodile && req == "Старт":
+			req := "init"
+			url := fmt.Sprintf("http://127.0.0.1:8091/%s", req)
+			client := http.Client{}
+			response, err := client.Get(url)
+
+			if err != nil {
+				break
+				//return Current{}, err
+			}
+			if response.StatusCode != http.StatusOK {
+				break
+				//return Current{}, err
+			}
+			//	body, err2 := io.ReadAll(response.Body)
+			//	if err2 != nil {
+			//		break
+			//		//return Current{}, err
+			//	}
+			defer response.Body.Close()
+		//	var result Current
+		//	err3 := json.Unmarshal(body, &result)
+		//	if err3 != nil {
+		//		return Current{}, err
+		//	}
+		//	return result, nil
+		case currState == Crocodile && req == "Отмена":
+			currState = Chatting
+			answer = "Хорошо, сыграем в другой раз"
 		default:
 			chat := gigaapi.NewGigachat()
 			var err error
