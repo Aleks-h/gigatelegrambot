@@ -24,6 +24,16 @@ const (
 	Crocodile state = "crocodile"
 )
 
+type crocodstate string
+
+const (
+	initCmndNmbr state = "initCmndNmbr"
+	initTeamNmbr state = "initTeamNmbr"
+	reaady       state = "ready"
+	start        state = "start"
+	answer       state = "answer"
+)
+
 // Current содержит информацию о текущих погодных условиях
 type Current struct {
 	Time          string  `json:"time"`
@@ -116,34 +126,37 @@ func telegramBot() {
 			currState = Crocodile
 			continue
 		case currState == Crocodile && req == "Старт":
-			req := "init"
-			url := fmt.Sprintf("http://127.0.0.1:8091/%s", req)
-			client := http.Client{}
-			response, err := client.Get(url)
+			switch {
+			case req == "Старт":
+				req := "init"
+				url := fmt.Sprintf("http://127.0.0.1:8091/%s", req)
+				client := http.Client{}
+				response, err := client.Get(url)
 
-			if err != nil {
-				break
-				//return Current{}, err
+				if err != nil {
+					break
+					//return Current{}, err
+				}
+				if response.StatusCode != http.StatusOK {
+					break
+					//return Current{}, err
+				}
+				//	body, err2 := io.ReadAll(response.Body)
+				//	if err2 != nil {
+				//		break
+				//		//return Current{}, err
+				//	}
+				defer response.Body.Close()
+			case req == "Отмена":
+				answer = "Хорошо, сыграем в другой раз"
+				currState = Chatting
 			}
-			if response.StatusCode != http.StatusOK {
-				break
-				//return Current{}, err
-			}
-			//	body, err2 := io.ReadAll(response.Body)
-			//	if err2 != nil {
-			//		break
-			//		//return Current{}, err
-			//	}
-			defer response.Body.Close()
 		//	var result Current
 		//	err3 := json.Unmarshal(body, &result)
 		//	if err3 != nil {
 		//		return Current{}, err
 		//	}
 		//	return result, nil
-		case currState == Crocodile && req == "Отмена":
-			currState = Chatting
-			answer = "Хорошо, сыграем в другой раз"
 		default:
 			chat := gigaapi.NewGigachat()
 			var err error
