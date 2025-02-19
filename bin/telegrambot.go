@@ -189,37 +189,57 @@ func telegramBot() {
 				continue
 
 			case currcrocstate == initTeamNmbr:
-				cmndN, err := strconv.Atoi(req)
+				wrdN, err := strconv.Atoi(req)
 				if err != nil {
 					panic(err)
 				}
+				//	var msg tgbotapi.MessageConfig
 				var msg tgbotapi.MessageConfig
-				if cmndN > 24 {
-					crConf.cmndNmbr = 24
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Нельзя выбрать количество слов больше 24. Установлено значение 24.\nВыберите количество слов")
+				if wrdN > 24 {
+					crConf.wrdNmbr = 24
+					str := fmt.Sprintf("Нельзя выбрать количество слов больше 24. Установлено значение 24.\nКоличество команд: %d\nНажмите старт для начала игры", crConf.cmndNmbr)
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, str)
 				} else {
-					crConf.cmndNmbr = cmndN
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите количество слов")
+					crConf.wrdNmbr = wrdN
+					str := fmt.Sprintf("Количество команд: %d\nКоличество слов: %d\nНажмите старт для начала игры", crConf.cmndNmbr, crConf.wrdNmbr)
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, str)
 				}
-				//req := "init"
-				//url := fmt.Sprintf("http://127.0.0.1:8091/%s", req)
-				//client := http.Client{}
-				//response, err := client.Get(url)
-				//
-				//if err != nil {
-				//	break
-				//	//return Current{}, err
-				//}
-				//if response.StatusCode != http.StatusOK {
-				//	break
-				//	//return Current{}, err
-				//}
-				////	body, err2 := io.ReadAll(response.Body)
-				////	if err2 != nil {
-				////		break
-				////		//return Current{}, err
-				////	}
+				Buttn1 := tgbotapi.NewKeyboardButton("Старт")
+				Buttn2 := tgbotapi.NewKeyboardButton("Отмена")
+				row1 := tgbotapi.NewKeyboardButtonRow(Buttn1)
+				row2 := tgbotapi.NewKeyboardButtonRow(Buttn2)
+				numericKeyboard := tgbotapi.NewReplyKeyboard()
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row2)
+				msg.ReplyMarkup = numericKeyboard
+				bot.Send(msg)
+				currcrocstate = ready
+
+				req := "init"
+				param1 := fmt.Sprintf("numberOfWords=%d", crConf.wrdNmbr)
+				param2 := fmt.Sprintf("numberOfTeams=%d", crConf.cmndNmbr)
+				url := fmt.Sprintf("http://127.0.0.1:8091/%s?%s&%s", req, param1, param2)
+				client := http.Client{}
+				response, err := client.Get(url)
+
+				if err != nil {
+					break
+					//return Current{}, err
+				}
+				if response.StatusCode != http.StatusOK {
+					break
+					//return Current{}, err
+				}
+				//	body, err2 := io.ReadAll(response.Body)
+				//	if err2 != nil {
+				//		break
+				//		//return Current{}, err
+				//	}
 				//defer response.Body.Close()
+
+				continue
+
+			case currcrocstate == ready:
 
 			}
 		//	var result Current
