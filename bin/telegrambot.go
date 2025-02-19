@@ -24,14 +24,15 @@ const (
 	Crocodile state = "crocodile"
 )
 
-type crocodstate string
+type crocstate string
 
 const (
-	initCmndNmbr state = "initCmndNmbr"
-	initTeamNmbr state = "initTeamNmbr"
-	reaady       state = "ready"
-	start        state = "start"
-	answer       state = "answer"
+	initCmndNmbr crocstate = "initCmndNmbr"
+	initTeamNmbr crocstate = "initTeamNmbr"
+	ready        crocstate = "ready"
+	start        crocstate = "start"
+	answer       crocstate = "answer"
+	deflt        crocstate = "default"
 )
 
 // Current содержит информацию о текущих погодных условиях
@@ -41,10 +42,17 @@ type Current struct {
 	WindSpeed10M  float64 `json:"wind_speed_10m"`
 }
 
+type crocConfig struct {
+	wrdNmbr  int
+	cmndNmbr int
+}
+
 var (
-	usersList             = []int64{}
-	hourCntBirthDay int   = 7
-	currState       state = Chatting
+	usersList                 = []int64{}
+	hourCntBirthDay int       = 7
+	currState       state     = Chatting
+	currcrocstate   crocstate = deflt
+	crConf          crocConfig
 )
 
 func telegramBot() {
@@ -125,31 +133,94 @@ func telegramBot() {
 			bot.Send(msg)
 			currState = Crocodile
 			continue
-		case currState == Crocodile && req == "Старт":
+		case currState == Crocodile:
 			switch {
-			case req == "Старт":
-				req := "init"
-				url := fmt.Sprintf("http://127.0.0.1:8091/%s", req)
-				client := http.Client{}
-				response, err := client.Get(url)
-
-				if err != nil {
-					break
-					//return Current{}, err
+			case currcrocstate == deflt && req == "Старт":
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите количество команд")
+				numericLine := tgbotapi.NewKeyboardButtonRow()
+				for i := 0; i < 10; i++ {
+					Buttn := tgbotapi.NewKeyboardButton(strconv.Itoa(i + 1))
+					numericLine = append(numericLine, Buttn)
 				}
-				if response.StatusCode != http.StatusOK {
-					break
-					//return Current{}, err
-				}
-				//	body, err2 := io.ReadAll(response.Body)
-				//	if err2 != nil {
-				//		break
-				//		//return Current{}, err
-				//	}
-				defer response.Body.Close()
+				cnclbtn := tgbotapi.NewKeyboardButton("Отмена")
+				cnclline := tgbotapi.NewKeyboardButtonRow(cnclbtn)
+				numericKeyboard := tgbotapi.NewReplyKeyboard()
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, numericLine)
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, cnclline)
+				msg.ReplyMarkup = numericKeyboard
+				bot.Send(msg)
+				currcrocstate = initCmndNmbr
+				continue
 			case req == "Отмена":
 				answer = "Хорошо, сыграем в другой раз"
+				currcrocstate = deflt
 				currState = Chatting
+			case currcrocstate == initCmndNmbr:
+				cmndN, err := strconv.Atoi(req)
+				if err != nil {
+					panic(err)
+				}
+				var msg tgbotapi.MessageConfig
+				if cmndN > 10 {
+					crConf.cmndNmbr = 10
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Нельзя выбрать количество команд больше 10. Установлено значение 10.\nВыберите количество слов")
+				} else {
+					crConf.cmndNmbr = cmndN
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите количество слов")
+				}
+
+				number := 0
+				numericKeyboard := tgbotapi.NewReplyKeyboard()
+				for j := 0; j < 4; j++ {
+					numericLine := tgbotapi.NewKeyboardButtonRow()
+					for i := 0; i < 6; i++ {
+						Buttn := tgbotapi.NewKeyboardButton(strconv.Itoa(number + 1))
+						numericLine = append(numericLine, Buttn)
+						number++
+					}
+					numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, numericLine)
+				}
+				cnclbtn := tgbotapi.NewKeyboardButton("Отмена")
+				cnclline := tgbotapi.NewKeyboardButtonRow(cnclbtn)
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, cnclline)
+				msg.ReplyMarkup = numericKeyboard
+				bot.Send(msg)
+				currcrocstate = initTeamNmbr
+				continue
+
+			case currcrocstate == initTeamNmbr:
+				cmndN, err := strconv.Atoi(req)
+				if err != nil {
+					panic(err)
+				}
+				var msg tgbotapi.MessageConfig
+				if cmndN > 24 {
+					crConf.cmndNmbr = 24
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Нельзя выбрать количество слов больше 24. Установлено значение 24.\nВыберите количество слов")
+				} else {
+					crConf.cmndNmbr = cmndN
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите количество слов")
+				}
+				//req := "init"
+				//url := fmt.Sprintf("http://127.0.0.1:8091/%s", req)
+				//client := http.Client{}
+				//response, err := client.Get(url)
+				//
+				//if err != nil {
+				//	break
+				//	//return Current{}, err
+				//}
+				//if response.StatusCode != http.StatusOK {
+				//	break
+				//	//return Current{}, err
+				//}
+				////	body, err2 := io.ReadAll(response.Body)
+				////	if err2 != nil {
+				////		break
+				////		//return Current{}, err
+				////	}
+				//defer response.Body.Close()
+
 			}
 		//	var result Current
 		//	err3 := json.Unmarshal(body, &result)
