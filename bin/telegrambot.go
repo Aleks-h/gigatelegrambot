@@ -32,7 +32,7 @@ const (
 	initTeamNmbr crocstate = "initTeamNmbr"
 	ready        crocstate = "ready"
 	start        crocstate = "start"
-	answer       crocstate = "answer"
+	answr        crocstate = "answer"
 	deflt        crocstate = "default"
 )
 
@@ -191,9 +191,22 @@ func telegramBot() {
 
 			case currcrocstate == initTeamNmbr:
 				//	var msg tgbotapi.MessageConfig
-				str := fmt.Sprintf("Нельзя выбрать количество слов больше 24. Установлено значение 24.\nКоличество команд: %d\nНажмите старт для начала игры", crConf.cmndNmbr)
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, str)
-				Buttn1 := tgbotapi.NewKeyboardButton("Старт")
+				wrdN, err := strconv.Atoi(req)
+				if err != nil {
+					panic(err)
+				}
+				//	var msg tgbotapi.MessageConfig
+				var msg tgbotapi.MessageConfig
+				if wrdN > 24 {
+					crConf.wrdNmbr = 24
+					str := fmt.Sprintf("Нельзя выбрать количество слов больше 24. Установлено значение 24.\nКоличество команд: %d", crConf.cmndNmbr)
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, str)
+				} else {
+					crConf.wrdNmbr = wrdN
+					str := fmt.Sprintf("Количество команд: %d\nКоличество слов: %d", crConf.cmndNmbr, crConf.wrdNmbr)
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID, str)
+				}
+				Buttn1 := tgbotapi.NewKeyboardButton("Далее")
 				Buttn2 := tgbotapi.NewKeyboardButton("Отмена")
 				row1 := tgbotapi.NewKeyboardButtonRow(Buttn1)
 				row2 := tgbotapi.NewKeyboardButtonRow(Buttn2)
@@ -213,7 +226,6 @@ func telegramBot() {
 				continue
 
 			case currcrocstate == ready:
-
 				req = "http://127.0.0.1:8091/ready"
 				ans, err := sendToCrocodile(req)
 				if err != nil {
@@ -227,18 +239,48 @@ func telegramBot() {
 				numericKeyboard := tgbotapi.NewReplyKeyboard()
 				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
 				msg.ReplyMarkup = numericKeyboard
-				bot.Send(msg)
-				currcrocstate = ready
-				req := fmt.Sprintf("http://127.0.0.1:8091/init?numberOfWords=%d&numberOfTeams=%d",
-					crConf.wrdNmbr, crConf.cmndNmbr)
-				_, err2 := sendToCrocodile(req)
-				if err2 != nil {
-					answer = err2.Error()
+				_, err = bot.Send(msg)
+				if err != nil {
+					panic(err)
+				}
+				currcrocstate = start
+				continue
+			case currcrocstate == start:
+				req = "http://127.0.0.1:8091/start"
+				ans, err := sendToCrocodile(req)
+				if err != nil {
+					answer = err.Error()
 					break
 				}
+				msgtosnd := string(ans[:])
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtosnd)
+				Buttn1 := tgbotapi.NewKeyboardButton("+")
+				Buttn2 := tgbotapi.NewKeyboardButton("-")
+				row1 := tgbotapi.NewKeyboardButtonRow(Buttn1, Buttn2)
+				numericKeyboard := tgbotapi.NewReplyKeyboard()
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
+				msg.ReplyMarkup = numericKeyboard
+				_, err = bot.Send(msg)
+				if err != nil {
+					panic(err)
+				}
+				currcrocstate = answr
 				continue
-			case currcrocstate == ready:
-
+			case currcrocstate == answr:
+				var ans string
+				if answer == "+" {
+					ans = "right"
+				} else if answer == "-" {
+					ans = "skip"
+				}
+				req = fmt.Sprintf("http://127.0.0.1:8091/answer?value=%s", ans)
+				_, err := sendToCrocodile(req)
+				if err != nil {
+					answer = err.Error()
+					break
+				}
+				currcrocstate = start
+				continue
 			}
 		//	var result Current
 		//	err3 := json.Unmarshal(body, &result)
