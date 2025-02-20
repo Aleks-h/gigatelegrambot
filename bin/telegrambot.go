@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -189,21 +190,9 @@ func telegramBot() {
 				continue
 
 			case currcrocstate == initTeamNmbr:
-				wrdN, err := strconv.Atoi(req)
-				if err != nil {
-					panic(err)
-				}
 				//	var msg tgbotapi.MessageConfig
-				var msg tgbotapi.MessageConfig
-				if wrdN > 24 {
-					crConf.wrdNmbr = 24
-					str := fmt.Sprintf("Нельзя выбрать количество слов больше 24. Установлено значение 24.\nКоличество команд: %d\nНажмите старт для начала игры", crConf.cmndNmbr)
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, str)
-				} else {
-					crConf.wrdNmbr = wrdN
-					str := fmt.Sprintf("Количество команд: %d\nКоличество слов: %d\nНажмите старт для начала игры", crConf.cmndNmbr, crConf.wrdNmbr)
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, str)
-				}
+				str := fmt.Sprintf("Нельзя выбрать количество слов больше 24. Установлено значение 24.\nКоличество команд: %d\nНажмите старт для начала игры", crConf.cmndNmbr)
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, str)
 				Buttn1 := tgbotapi.NewKeyboardButton("Старт")
 				Buttn2 := tgbotapi.NewKeyboardButton("Отмена")
 				row1 := tgbotapi.NewKeyboardButtonRow(Buttn1)
@@ -213,32 +202,41 @@ func telegramBot() {
 				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row2)
 				msg.ReplyMarkup = numericKeyboard
 				bot.Send(msg)
-				currcrocstate = ready
-
-				req := "init"
-				param1 := fmt.Sprintf("numberOfWords=%d", crConf.wrdNmbr)
-				param2 := fmt.Sprintf("numberOfTeams=%d", crConf.cmndNmbr)
-				url := fmt.Sprintf("http://127.0.0.1:8091/%s?%s&%s", req, param1, param2)
-				client := http.Client{}
-				response, err := client.Get(url)
-
+				req := fmt.Sprintf("http://127.0.0.1:8091/init?numberOfWords=%d&numberOfTeams=%d",
+					crConf.wrdNmbr, crConf.cmndNmbr)
+				_, err = sendToCrocodile(req)
 				if err != nil {
+					answer = err.Error()
 					break
-					//return Current{}, err
 				}
-				if response.StatusCode != http.StatusOK {
-					break
-					//return Current{}, err
-				}
-				//	body, err2 := io.ReadAll(response.Body)
-				//	if err2 != nil {
-				//		break
-				//		//return Current{}, err
-				//	}
-				//defer response.Body.Close()
-
+				currcrocstate = ready
 				continue
 
+			case currcrocstate == ready:
+
+				req = "http://127.0.0.1:8091/ready"
+				ans, err := sendToCrocodile(req)
+				if err != nil {
+					answer = err.Error()
+					break
+				}
+				msgtosnd := string(ans[:])
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtosnd)
+				Buttn1 := tgbotapi.NewKeyboardButton("Старт")
+				row1 := tgbotapi.NewKeyboardButtonRow(Buttn1)
+				numericKeyboard := tgbotapi.NewReplyKeyboard()
+				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
+				msg.ReplyMarkup = numericKeyboard
+				bot.Send(msg)
+				currcrocstate = ready
+				req := fmt.Sprintf("http://127.0.0.1:8091/init?numberOfWords=%d&numberOfTeams=%d",
+					crConf.wrdNmbr, crConf.cmndNmbr)
+				_, err2 := sendToCrocodile(req)
+				if err2 != nil {
+					answer = err2.Error()
+					break
+				}
+				continue
 			case currcrocstate == ready:
 
 			}
@@ -263,6 +261,26 @@ func telegramBot() {
 			panic(err)
 		}
 	}
+}
+
+func sendToCrocodile(strtosend string) ([]byte, error) {
+	client := http.Client{}
+	response, err := client.Get(strtosend)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode != http.StatusOK {
+		err := errors.New(fmt.Sprintf("Получен код возврата %d", response.StatusCode))
+		return nil, err
+	}
+	body, err2 := io.ReadAll(response.Body)
+	defer response.Body.Close()
+	if err2 != nil {
+		return nil, err2
+		//return Current{}, err
+	}
+	fmt.Println(body)
+	return body, nil
 }
 
 func confReader() map[string]string {
