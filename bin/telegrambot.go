@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -67,6 +66,8 @@ func telegramBot() {
 	//Устанавливаем время обновления
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
+
+	var msgToDelt tgbotapi.Message
 
 	//Получаем обновления от бота
 	updates := bot.GetUpdatesChan(u)
@@ -253,33 +254,45 @@ func telegramBot() {
 					break
 				}
 				msgtosnd := string(ans[:])
+
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtosnd)
-				Buttn1 := tgbotapi.NewKeyboardButton("+")
-				Buttn2 := tgbotapi.NewKeyboardButton("-")
-				row1 := tgbotapi.NewKeyboardButtonRow(Buttn1, Buttn2)
-				numericKeyboard := tgbotapi.NewReplyKeyboard()
-				numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
-				msg.ReplyMarkup = numericKeyboard
-				_, err = bot.Send(msg)
+				msg.ReplyMarkup = createAnswrMenu()
+				msgToDelt, err = bot.Send(msg)
 				if err != nil {
 					panic(err)
 				}
 				currcrocstate = answr
 				continue
 			case currcrocstate == answr:
+				deleteMsg := tgbotapi.DeleteMessageConfig{
+					ChannelUsername: update.FromChat().UserName,
+					ChatID:          update.Message.Chat.ID,
+					MessageID:       msgToDelt.MessageID,
+				}
+				_, err = bot.Request(deleteMsg)
+				if err != nil {
+					panic(err)
+				}
+
 				var ans string
-				if answer == "+" {
+				if req == "+" {
 					ans = "right"
-				} else if answer == "-" {
+				} else if req == "-" {
 					ans = "skip"
 				}
 				req = fmt.Sprintf("http://127.0.0.1:8091/answer?value=%s", ans)
-				_, err := sendToCrocodile(req)
+				answ, err := sendToCrocodile(req)
 				if err != nil {
 					answer = err.Error()
 					break
 				}
-				currcrocstate = start
+				msgtosnd := string(answ[:])
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtosnd)
+				msg.ReplyMarkup = createAnswrMenu()
+				msgToDelt, err = bot.Send(msg)
+				if err != nil {
+					panic(err)
+				}
 				continue
 			}
 		//	var result Current
@@ -305,6 +318,15 @@ func telegramBot() {
 	}
 }
 
+func createAnswrMenu() *tgbotapi.ReplyKeyboardMarkup {
+	Buttn1 := tgbotapi.NewKeyboardButton("+")
+	Buttn2 := tgbotapi.NewKeyboardButton("-")
+	row1 := tgbotapi.NewKeyboardButtonRow(Buttn1, Buttn2)
+	numericKeyboard := tgbotapi.NewReplyKeyboard()
+	numericKeyboard.Keyboard = append(numericKeyboard.Keyboard, row1)
+	return &numericKeyboard
+}
+
 func sendToCrocodile(strtosend string) ([]byte, error) {
 	client := http.Client{}
 	response, err := client.Get(strtosend)
@@ -312,7 +334,7 @@ func sendToCrocodile(strtosend string) ([]byte, error) {
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
-		err := errors.New(fmt.Sprintf("Получен код возврата %d", response.StatusCode))
+		err := fmt.Errorf("Получен код возврата %d", response.StatusCode) //errors.New(fmt.Sprintf("Получен код возврата %d", response.StatusCode))
 		return nil, err
 	}
 	body, err2 := io.ReadAll(response.Body)
