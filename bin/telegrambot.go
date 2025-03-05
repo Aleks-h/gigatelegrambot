@@ -287,6 +287,12 @@ func telegramBot() {
 					break
 				}
 				msgtosnd := string(answ[:])
+				if len(msgtosnd) >= 28 {
+					print(msgtosnd[:28])
+				}
+				if len(msgtosnd) >= 28 && msgtosnd[:28] == "\"Игра закончена" {
+					print("Игра окончена")
+				}
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, msgtosnd)
 				msg.ReplyMarkup = createAnswrMenu()
 				msgToDelt, err = bot.Send(msg)
